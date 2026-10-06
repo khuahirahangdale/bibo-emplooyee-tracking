@@ -65,7 +65,7 @@ export function Login({
   // Open the web signup wizard in the system browser (same as the Welcome screen).
   async function openForgotPassword() {
     try {
-      await openUrl("https://auth.hawkaerosystem.com/realms/master/login-actions/reset-credentials");
+      await openUrl("https://auth.hawkaerosystem.com/realms/master/login-actions/reset-credentials?client_id=bibo-tracker&redirect_uri=https://erp.hawkaerosystem.com");
     } catch (err) {
       console.error("Failed to open reset password URL:", err);
     }
