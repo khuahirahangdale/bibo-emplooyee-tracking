@@ -1,0 +1,45 @@
+﻿name: Build Desktop App
+
+on:
+  push:
+    branches: [ "**" ]
+  workflow_dispatch:
+
+jobs:
+  build-tauri:
+    runs-on: windows-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.30.1
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: "pnpm"
+
+      - name: Install workspace dependencies
+        run: pnpm install
+
+      - name: Build frontend
+        run: pnpm --filter @ctracking/desktop build
+
+      - name: Build Tauri desktop executable
+        working-directory: apps/desktop
+        run: pnpm tauri build --no-bundle
+
+      - name: Upload compiled binary as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ctracking-windows-exe
+          path: apps/desktop/src-tauri/target/release/ctracking.exe
+          if-no-files-found: error

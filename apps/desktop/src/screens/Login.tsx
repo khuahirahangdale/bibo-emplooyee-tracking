@@ -1,6 +1,7 @@
-import { useState } from "react";
+﻿import { useState } from "react";
 import { call as invoke } from "../api";
 import { openUrl } from "@tauri-apps/plugin-opener";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 import { useTranslation } from "react-i18next";
 import { BrandMark } from "../ui";
 import { AuthTitleBar } from "../components/AuthTitleBar";
@@ -14,7 +15,7 @@ export type Session = {
   account_type?: string;
 };
 
-/* Inline icons (no icon dependency — matches the inline-mark style used elsewhere). */
+/* Inline icons (no icon dependency â€” matches the inline-mark style used elsewhere). */
 const AtSignIcon = () => (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
     strokeLinecap="round" strokeLinejoin="round" aria-hidden>
@@ -46,7 +47,7 @@ const BackIcon = () => (
 );
 
 /// Shown when the user picks "I have an account" on the welcome screen. The
-/// employee signs in with their pre-created account — the backend resolves their
+/// employee signs in with their pre-created account â€” the backend resolves their
 /// company from their membership, so there's nothing to pick.
 export function Login({
   onLoggedIn,
@@ -67,7 +68,7 @@ export function Login({
       const url = await invoke<string>("signup_url");
       await openUrl(url);
     } catch {
-      /* ignore — user can still sign in */
+      /* ignore â€” user can still sign in */
     }
   }
 
@@ -85,6 +86,12 @@ export function Login({
         businessId: null,
       });
       onLoggedIn(session);
+        try {
+          await openUrl("https://erp.hawkaerosystem.com/desk");
+          await getCurrentWindow().hide();
+        } catch (e) {
+          console.error("Failed to redirect or hide window:", e);
+        }
     } catch (err) {
       setError(String(err));
     } finally {
@@ -146,7 +153,7 @@ export function Login({
                 autoComplete="current-password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                placeholder="••••••••"
+                placeholder="â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢"
               />
             </div>
           </label>
