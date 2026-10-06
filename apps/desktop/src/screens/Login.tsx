@@ -1,4 +1,4 @@
-﻿import { useState } from "react";
+import { useState } from "react";
 import { call as invoke } from "../api";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { getCurrentWindow } from "@tauri-apps/api/window";
@@ -63,6 +63,14 @@ export function Login({
   const [busy, setBusy] = useState(false);
 
   // Open the web signup wizard in the system browser (same as the Welcome screen).
+  async function openForgotPassword() {
+    try {
+      await openUrl("https://auth.hawkaerosystem.com/realms/master/login-actions/reset-credentials");
+    } catch (err) {
+      console.error("Failed to open reset password URL:", err);
+    }
+  }
+
   async function openSignup() {
     try {
       const url = await invoke<string>("signup_url");
@@ -160,6 +168,14 @@ export function Login({
 
           {/* "Sign up on the web" link, right-aligned just under the password */}
           <div className="auth-forgot-row">
+              <button
+                type="button"
+                className="auth-signup"
+                style={{ cursor: "pointer", background: "none", border: "none", padding: 0 }}
+                onClick={openForgotPassword}
+              >
+                Forgot password?
+              </button>
             <button type="button" className="auth-signup" onClick={openSignup}>
               {t("login.signupLink")}
               <svg
