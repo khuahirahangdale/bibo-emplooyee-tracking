@@ -8,12 +8,11 @@ on:
       - 'v*'
   workflow_dispatch:
 
-permissions:
-  contents: write
-
 jobs:
   build-tauri:
     runs-on: windows-latest
+    permissions:
+      contents: write
 
     steps:
       - name: Check out repository
@@ -24,8 +23,6 @@ jobs:
 
       - name: Install pnpm
         uses: pnpm/action-setup@v4
-        with:
-          version: 9
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
@@ -55,7 +52,6 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: apps/desktop/src-tauri/target/release/ctracking.exe
-          tag_name: ${{ github.ref_name }}
           name: BiBo Tracker ${{ github.ref_name }}
           body: "Official desktop client build for employee tracking."
         env:
