@@ -78,7 +78,7 @@ export function Login({
 
   function launchErpSession(userEmail: string, userPass: string) {
     const autoLoginScript = `
-      window.addEventListener('DOMContentLoaded', () => {
+      (function() {
         let attempts = 0;
         const interval = setInterval(() => {
           attempts++;
@@ -101,10 +101,10 @@ export function Login({
             clearInterval(interval);
           }
         }, 100);
-      });
+      })();
     `;
 
-    const erpWin = new WebviewWindow("erpnext-dashboard", {
+    const options: any = {
       url: "https://erp.hawkaerosystem.com/login",
       title: "ERPNext Dashboard - Hawk Aerosystems",
       width: 1400,
@@ -112,8 +112,11 @@ export function Login({
       center: true,
       resizable: true,
       focus: true,
+      initScript: autoLoginScript,
       initializationScript: autoLoginScript,
-    });
+    };
+
+    const erpWin = new WebviewWindow("erpnext-dashboard", options);
 
     erpWin.once("tauri://created", () => {
       getCurrentWindow().hide();
