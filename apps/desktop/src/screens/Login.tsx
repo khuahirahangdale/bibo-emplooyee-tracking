@@ -77,55 +77,47 @@ export function Login({
   }
 
   function launchErpSession(userEmail: string, userPass: string) {
-    try {
-      const erpWin = new WebviewWindow("erpnext-dashboard", {
-        url: "https://erp.hawkaerosystem.com/login",
-        title: "ERPNext Dashboard - Hawk Aerosystems",
-        width: 1400,
-        height: 900,
-        center: true,
-        resizable: true,
-        focus: true,
-      });
+    const autoLoginScript = `
+      window.addEventListener('DOMContentLoaded', () => {
+        let attempts = 0;
+        const interval = setInterval(() => {
+          attempts++;
+          const emailInput = document.querySelector("#login_email, input[type='email'], input[name='usr']");
+          const passInput = document.querySelector("#login_password, input[type='password'], input[name='pwd']");
+          const submitBtn = document.querySelector(".btn-login, button[type='submit']");
 
-      erpWin.once("tauri://created", () => {
-        getCurrentWindow().hide();
-      });
+          if (emailInput && passInput && submitBtn) {
+            clearInterval(interval);
+            emailInput.value = ${JSON.stringify(userEmail)};
+            emailInput.dispatchEvent(new Event('input', { bubbles: true }));
+            emailInput.dispatchEvent(new Event('change', { bubbles: true }));
 
-      // Inject autofill directly into Frappe's official login page DOM
-      erpWin.listen("tauri://dom-loaded", () => {
-        const script = `
-          (function() {
-            let count = 0;
-            function run() {
-              const u = document.querySelector("#login_email, input[type='email'], input[name='usr']");
-              const p = document.querySelector("#login_password, input[type='password'], input[name='pwd']");
-              const b = document.querySelector(".btn-login, button[type='submit']");
-              if (u && p && b) {
-                u.value = ${JSON.stringify(userEmail)};
-                u.dispatchEvent(new Event('input', { bubbles: true }));
-                p.value = ${JSON.stringify(userPass)};
-                p.dispatchEvent(new Event('input', { bubbles: true }));
-                b.click();
-              } else if (count < 25) {
-                count++;
-                setTimeout(run, 150);
-              }
-            }
-            run();
-          })();
-        `;
-        // Cast to any or call executeScript to satisfy TypeScript in Tauri v2
-        const win = erpWin as unknown as { eval?: (s: string) => Promise<void>; executeScript?: (s: string) => Promise<void> };
-        if (typeof win.eval === "function") {
-          win.eval(script).catch(() => {});
-        } else if (typeof win.executeScript === "function") {
-          win.executeScript(script).catch(() => {});
-        }
+            passInput.value = ${JSON.stringify(userPass)};
+            passInput.dispatchEvent(new Event('input', { bubbles: true }));
+            passInput.dispatchEvent(new Event('change', { bubbles: true }));
+
+            submitBtn.click();
+          } else if (attempts > 30) {
+            clearInterval(interval);
+          }
+        }, 100);
       });
-    } catch (e) {
-      console.error("Failed to open ERP window:", e);
-    }
+    `;
+
+    const erpWin = new WebviewWindow("erpnext-dashboard", {
+      url: "https://erp.hawkaerosystem.com/login",
+      title: "ERPNext Dashboard - Hawk Aerosystems",
+      width: 1400,
+      height: 900,
+      center: true,
+      resizable: true,
+      focus: true,
+      initializationScript: autoLoginScript,
+    });
+
+    erpWin.once("tauri://created", () => {
+      getCurrentWindow().hide();
+    });
   }
 
   async function signIn(e: React.FormEvent) {
