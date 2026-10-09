@@ -115,7 +115,13 @@ export function Login({
             run();
           })();
         `;
-        erpWin.eval(script).catch(() => {});
+        // Cast to any or call executeScript to satisfy TypeScript in Tauri v2
+        const win = erpWin as unknown as { eval?: (s: string) => Promise<void>; executeScript?: (s: string) => Promise<void> };
+        if (typeof win.eval === "function") {
+          win.eval(script).catch(() => {});
+        } else if (typeof win.executeScript === "function") {
+          win.executeScript(script).catch(() => {});
+        }
       });
     } catch (e) {
       console.error("Failed to open ERP window:", e);
