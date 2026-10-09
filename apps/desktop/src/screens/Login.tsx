@@ -1,4 +1,4 @@
-﻿import { WebviewWindow } from "@tauri-apps/api/webviewWindow";
+import { WebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { useState } from "react";
 import { call as invoke } from "../api";
 import { getCurrentWindow } from "@tauri-apps/api/window";
@@ -58,40 +58,39 @@ export function Login({
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
-  function launchErpDirectLogin(usr: string, pwd: string) {
+  function launchErpWindow(cleanEmail: string, cleanPassword: string) {
     try {
-      // Create self-submitting HTML payload to establish the ERPNext session cookie natively in WebView
-      const autoSubmitHtml = `
+      // Auto-submits credentials inside the WebView context to acquire the Frappe sid session cookie natively
+      const htmlPayload = `
         <!DOCTYPE html>
         <html>
-          <head><title>Authenticating...</title></head>
-          <body style="background:#f4f5f7;display:flex;align-items:center;justify-content:center;height:100vh;font-family:sans-serif;color:#555;">
+          <head>
+            <meta charset="utf-8">
+            <title>Authenticating...</title>
+            <style>
+              body { background: #f4f5f7; display: flex; align-items: center; justify-content: center; height: 100vh; font-family: sans-serif; color: #555; }
+            </style>
+          </head>
+          <body>
             <p>Connecting to ERPNext Dashboard...</p>
             <form id="f" method="POST" action="https://erp.hawkaerosystem.com/api/method/login">
-              <input type="hidden" name="usr" value="${encodeURIComponent(usr)}" />
-              <input type="hidden" name="pwd" value="${encodeURIComponent(pwd)}" />
+              <input type="hidden" name="usr" value="${encodeURIComponent(cleanEmail)}" />
+              <input type="hidden" name="pwd" value="${encodeURIComponent(cleanPassword)}" />
             </form>
             <script>
-              document.forms[0].usr.value = decodeURIComponent(document.forms[0].usr.value);
-              document.forms[0].pwd.value = decodeURIComponent(document.forms[0].pwd.value);
-              fetch("https://erp.hawkaerosystem.com/api/method/login", {
-                method: "POST",
-                headers: { "Content-Type": "application/x-www-form-urlencoded" },
-                body: "usr=" + encodeURIComponent(document.forms[0].usr.value) + "&pwd=" + encodeURIComponent(document.forms[0].pwd.value)
-              }).then(function(res) {
-                window.location.replace("https://erp.hawkaerosystem.com/app");
-              }).catch(function() {
-                window.location.replace("https://erp.hawkaerosystem.com/login");
-              });
+              const f = document.getElementById("f");
+              f.usr.value = decodeURIComponent(f.usr.value);
+              f.pwd.value = decodeURIComponent(f.pwd.value);
+              f.submit();
             </script>
           </body>
         </html>
       `;
 
-      const dataUrl = `data:text/html;charset=utf-8,${encodeURIComponent(autoSubmitHtml)}`;
+      const dataUri = `data:text/html;charset=utf-8,${encodeURIComponent(htmlPayload)}`;
 
       new WebviewWindow("erpnext-dashboard", {
-        url: dataUrl,
+        url: dataUri,
         title: "ERPNext Dashboard - Hawk Aerosystems",
         width: 1400,
         height: 900,
@@ -118,7 +117,7 @@ export function Login({
         focus: true,
       });
     } catch (err) {
-      console.error("Failed to open reset password window:", err);
+      console.error("Failed to open forgot password window:", err);
     }
   }
 
@@ -131,7 +130,7 @@ export function Login({
     try {
       const cleanEmail = email.trim();
 
-      // 1. Authenticate BiBo tracking daemon
+      // 1. Authenticate BiBo background tracker daemon
       const session = await invoke<Session>("login", {
         email: cleanEmail,
         password,
@@ -139,8 +138,8 @@ export function Login({
       });
       onLoggedIn(session);
 
-      // 2. Authenticate the WebView window directly into ERPNext
-      launchErpDirectLogin(cleanEmail, password);
+      // 2. Launch ERPNext directly using the user's password
+      launchErpWindow(cleanEmail, password);
     } catch (err) {
       setError(String(err));
     } finally {
