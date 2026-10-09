@@ -1,7 +1,6 @@
 import { WebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { useState } from "react";
 import { call as invoke } from "../api";
-import { openUrl } from "@tauri-apps/plugin-opener";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { useTranslation } from "react-i18next";
 import { BrandMark } from "../ui";
@@ -16,7 +15,6 @@ export type Session = {
   account_type?: string;
 };
 
-/* Inline icons (no icon dependency — matches the inline-mark style used elsewhere). */
 const AtSignIcon = () => (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
     strokeLinecap="round" strokeLinejoin="round" aria-hidden>
@@ -47,9 +45,6 @@ const BackIcon = () => (
   </svg>
 );
 
-/// Shown when the user picks "I have an account" on the welcome screen. The
-/// employee signs in with their pre-created account — the backend resolves their
-/// company from their membership, so there's nothing to pick.
 export function Login({
   onLoggedIn,
   onBack,
@@ -63,21 +58,20 @@ export function Login({
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
-  // Open the web signup wizard in the system browser (same as the Welcome screen).
-  async function openForgotPassword() {
+  // Keycloak password reset window
+  function openForgotPassword() {
     try {
-      await openUrl("https://auth.hawkaerosystem.com/realms/master/login-actions/reset-credentials?client_id=bibo-tracker&redirect_uri=https://erp.hawkaerosystem.com");
+      new WebviewWindow("keycloak-reset-password", {
+        url: "https://auth.hawkaerosystem.com/realms/master/login-actions/reset-credentials?client_id=bibo-tracker",
+        title: "Reset Password - Hawk Aerosystems",
+        width: 600,
+        height: 700,
+        center: true,
+        resizable: true,
+        focus: true,
+      });
     } catch (err) {
-      console.error("Failed to open reset password URL:", err);
-    }
-  }
-
-  async function openSignup() {
-    try {
-      const url = await invoke<string>("signup_url");
-      await openUrl(url);
-    } catch {
-      /* ignore — user can still sign in */
+      console.error("Failed to open reset password window:", err);
     }
   }
 
@@ -87,19 +81,15 @@ export function Login({
     setError(null);
     setBusy(true);
     try {
-      // No business_id: the backend resolves the employee's company from their
-      // single membership.
       const session = await invoke<Session>("login", {
         email: email.trim(),
         password,
         businessId: null,
       });
 
-      // Starts the background tracker session
       onLoggedIn(session);
 
       try {
-        // Open ERPNext inside a dedicated desktop window
         new WebviewWindow("erpnext-dashboard", {
           url: "https://erp.hawkaerosystem.com/app",
           title: "ERPNext Dashboard - Hawk Aerosystems",
@@ -110,7 +100,6 @@ export function Login({
           focus: true,
         });
 
-        // Hide the BiBo login window so tracking stays running in background
         await getCurrentWindow().hide();
       } catch (e) {
         console.error("Failed to create ERPNext desktop window:", e);
@@ -181,30 +170,23 @@ export function Login({
             </div>
           </label>
 
-          {/* "Sign up on the web" link, right-aligned just under the password */}
-          <div className="auth-forgot-row">
+          {/* Connected to Keycloak Reset Flow */}
+          <div style={{ display: "flex", justifyContent: "flex-end", marginTop: "4px", marginBottom: "16px" }}>
             <button
               type="button"
-              className="auth-signup"
-              style={{ cursor: "pointer", background: "none", border: "none", padding: 0 }}
+              style={{
+                background: "none",
+                border: "none",
+                padding: 0,
+                color: "#6366f1",
+                fontSize: "13px",
+                fontWeight: 500,
+                cursor: "pointer",
+                textDecoration: "underline"
+              }}
               onClick={openForgotPassword}
             >
               Forgot password?
-            </button>
-            <button type="button" className="auth-signup" onClick={openSignup}>
-              {t("login.signupLink")}
-              <svg
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2.2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                aria-hidden
-              >
-                <path d="M5 12h14" />
-                <path d="m12 5 7 7-7 7" />
-              </svg>
             </button>
           </div>
 
