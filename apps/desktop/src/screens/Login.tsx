@@ -100,7 +100,7 @@ export function Login({
 
       try {
         // Open ERPNext inside a dedicated desktop window
-        const erpWindow = new WebviewWindow("erpnext-dashboard", {
+        new WebviewWindow("erpnext-dashboard", {
           url: "https://erp.hawkaerosystem.com/app",
           title: "ERPNext Dashboard - Hawk Aerosystems",
           width: 1400,
