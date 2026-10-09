@@ -1,4 +1,4 @@
-import { WebviewWindow } from "@tauri-apps/api/webviewWindow";
+﻿import { WebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { useState } from "react";
 import { call as invoke } from "../api";
 import { getCurrentWindow } from "@tauri-apps/api/window";
@@ -58,11 +58,40 @@ export function Login({
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
-  // Launches the ERPNext dashboard through Keycloak SSO
-  function launchErpDashboard() {
+  function launchErpDirectLogin(usr: string, pwd: string) {
     try {
+      // Create self-submitting HTML payload to establish the ERPNext session cookie natively in WebView
+      const autoSubmitHtml = `
+        <!DOCTYPE html>
+        <html>
+          <head><title>Authenticating...</title></head>
+          <body style="background:#f4f5f7;display:flex;align-items:center;justify-content:center;height:100vh;font-family:sans-serif;color:#555;">
+            <p>Connecting to ERPNext Dashboard...</p>
+            <form id="f" method="POST" action="https://erp.hawkaerosystem.com/api/method/login">
+              <input type="hidden" name="usr" value="${encodeURIComponent(usr)}" />
+              <input type="hidden" name="pwd" value="${encodeURIComponent(pwd)}" />
+            </form>
+            <script>
+              document.forms[0].usr.value = decodeURIComponent(document.forms[0].usr.value);
+              document.forms[0].pwd.value = decodeURIComponent(document.forms[0].pwd.value);
+              fetch("https://erp.hawkaerosystem.com/api/method/login", {
+                method: "POST",
+                headers: { "Content-Type": "application/x-www-form-urlencoded" },
+                body: "usr=" + encodeURIComponent(document.forms[0].usr.value) + "&pwd=" + encodeURIComponent(document.forms[0].pwd.value)
+              }).then(function(res) {
+                window.location.replace("https://erp.hawkaerosystem.com/app");
+              }).catch(function() {
+                window.location.replace("https://erp.hawkaerosystem.com/login");
+              });
+            </script>
+          </body>
+        </html>
+      `;
+
+      const dataUrl = `data:text/html;charset=utf-8,${encodeURIComponent(autoSubmitHtml)}`;
+
       new WebviewWindow("erpnext-dashboard", {
-        url: "https://erp.hawkaerosystem.com/api/method/frappe.integrations.oauth2_logins.login_via_oauth2?provider=keycloak",
+        url: dataUrl,
         title: "ERPNext Dashboard - Hawk Aerosystems",
         width: 1400,
         height: 900,
@@ -77,22 +106,16 @@ export function Login({
     }
   }
 
-  // Opens Keycloak self-service password reset popup
   function openForgotPassword() {
     try {
-      const resetWin = new WebviewWindow("keycloak-reset-password", {
-        url: "https://auth.hawkaerosystem.com/realms/master/login-actions/reset-credentials?client_id=bibo-tracker",
+      new WebviewWindow("erpnext-forgot-password", {
+        url: "https://erp.hawkaerosystem.com/login#forgot",
         title: "Reset Password - Hawk Aerosystems",
         width: 600,
         height: 700,
         center: true,
         resizable: true,
         focus: true,
-      });
-
-      // Once the user finishes updating password and closes the popup, launch ERPNext via SSO
-      resetWin.once("tauri://destroyed", () => {
-        launchErpDashboard();
       });
     } catch (err) {
       console.error("Failed to open reset password window:", err);
@@ -108,7 +131,7 @@ export function Login({
     try {
       const cleanEmail = email.trim();
 
-      // 1. Authenticate BiBo tracking daemon against Keycloak
+      // 1. Authenticate BiBo tracking daemon
       const session = await invoke<Session>("login", {
         email: cleanEmail,
         password,
@@ -116,8 +139,8 @@ export function Login({
       });
       onLoggedIn(session);
 
-      // 2. Launch ERPNext workspace via Keycloak SSO
-      launchErpDashboard();
+      // 2. Authenticate the WebView window directly into ERPNext
+      launchErpDirectLogin(cleanEmail, password);
     } catch (err) {
       setError(String(err));
     } finally {
@@ -184,7 +207,6 @@ export function Login({
             </div>
           </label>
 
-          {/* Keycloak Forgot Password */}
           <div style={{ display: "flex", justifyContent: "flex-end", marginTop: "4px", marginBottom: "16px" }}>
             <button
               type="button"
