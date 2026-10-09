@@ -1,3 +1,4 @@
+import { WebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { useState } from "react";
 import { call as invoke } from "../api";
 import { openUrl } from "@tauri-apps/plugin-opener";
@@ -15,7 +16,7 @@ export type Session = {
   account_type?: string;
 };
 
-/* Inline icons (no icon dependency â€” matches the inline-mark style used elsewhere). */
+/* Inline icons (no icon dependency — matches the inline-mark style used elsewhere). */
 const AtSignIcon = () => (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
     strokeLinecap="round" strokeLinejoin="round" aria-hidden>
@@ -47,7 +48,7 @@ const BackIcon = () => (
 );
 
 /// Shown when the user picks "I have an account" on the welcome screen. The
-/// employee signs in with their pre-created account â€” the backend resolves their
+/// employee signs in with their pre-created account — the backend resolves their
 /// company from their membership, so there's nothing to pick.
 export function Login({
   onLoggedIn,
@@ -76,7 +77,7 @@ export function Login({
       const url = await invoke<string>("signup_url");
       await openUrl(url);
     } catch {
-      /* ignore â€” user can still sign in */
+      /* ignore — user can still sign in */
     }
   }
 
@@ -93,13 +94,27 @@ export function Login({
         password,
         businessId: null,
       });
+
+      // Starts the background tracker session
       onLoggedIn(session);
-        try {
-          await openUrl("https://erp.hawkaerosystem.com/desk");
-          await getCurrentWindow().hide();
-        } catch (e) {
-          console.error("Failed to redirect or hide window:", e);
-        }
+
+      try {
+        // Open ERPNext inside a dedicated desktop window
+        const erpWindow = new WebviewWindow("erpnext-dashboard", {
+          url: "https://erp.hawkaerosystem.com/app",
+          title: "ERPNext Dashboard - Hawk Aerosystems",
+          width: 1400,
+          height: 900,
+          center: true,
+          resizable: true,
+          focus: true,
+        });
+
+        // Hide the BiBo login window so tracking stays running in background
+        await getCurrentWindow().hide();
+      } catch (e) {
+        console.error("Failed to create ERPNext desktop window:", e);
+      }
     } catch (err) {
       setError(String(err));
     } finally {
@@ -161,21 +176,21 @@ export function Login({
                 autoComplete="current-password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                placeholder="â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢"
+                placeholder="••••••••"
               />
             </div>
           </label>
 
           {/* "Sign up on the web" link, right-aligned just under the password */}
           <div className="auth-forgot-row">
-              <button
-                type="button"
-                className="auth-signup"
-                style={{ cursor: "pointer", background: "none", border: "none", padding: 0 }}
-                onClick={openForgotPassword}
-              >
-                Forgot password?
-              </button>
+            <button
+              type="button"
+              className="auth-signup"
+              style={{ cursor: "pointer", background: "none", border: "none", padding: 0 }}
+              onClick={openForgotPassword}
+            >
+              Forgot password?
+            </button>
             <button type="button" className="auth-signup" onClick={openSignup}>
               {t("login.signupLink")}
               <svg
