@@ -58,7 +58,6 @@ export function Login({
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
-  // Keycloak password reset window
   function openForgotPassword() {
     try {
       const resetWin = new WebviewWindow("keycloak-reset-password", {
@@ -71,7 +70,6 @@ export function Login({
         focus: true,
       });
 
-      // Refocus the main login window once the user finishes and closes the reset window
       resetWin.once("tauri://destroyed", () => {
         getCurrentWindow().setFocus();
       });
@@ -96,4 +94,113 @@ export function Login({
 
       try {
         new WebviewWindow("erpnext-dashboard", {
-          url: "
+          url: "https://erp.hawkaerosystem.com/app",
+          title: "ERPNext Dashboard - Hawk Aerosystems",
+          width: 1400,
+          height: 900,
+          center: true,
+          resizable: true,
+          focus: true,
+        });
+
+        await getCurrentWindow().hide();
+      } catch (e) {
+        console.error("Failed to create ERPNext desktop window:", e);
+      }
+    } catch (err) {
+      setError(String(err));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="login welcome">
+      <AuthTitleBar />
+      {onBack && (
+        <button type="button" className="welcome-back" onClick={onBack}>
+          <BackIcon />
+          {t("login.back")}
+        </button>
+      )}
+      <div className="welcome-lang">
+        <LanguageSwitcher compact />
+      </div>
+
+      <BrandMark />
+      <form className="login-card" onSubmit={signIn}>
+        <h1 className="login-title">{t("login.title")}</h1>
+        <p className="login-sub">{t("login.subtitle")}</p>
+
+        <div className="auth-form">
+          {error && (
+            <div className="auth-err" role="alert">
+              <AlertIcon />
+              {error}
+            </div>
+          )}
+
+          <label className="auth-field">
+            <span className="auth-field-lbl">{t("login.identifier")}</span>
+            <div className="auth-input">
+              <span className="auth-input-ic">
+                <AtSignIcon />
+              </span>
+              <input
+                type="text"
+                autoComplete="username"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="you@example.com"
+                autoFocus
+              />
+            </div>
+          </label>
+
+          <label className="auth-field">
+            <span className="auth-field-lbl">{t("login.password")}</span>
+            <div className="auth-input">
+              <span className="auth-input-ic">
+                <LockIcon />
+              </span>
+              <input
+                type="password"
+                autoComplete="current-password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="Password"
+              />
+            </div>
+          </label>
+
+          <div style={{ display: "flex", justifyContent: "flex-end", marginTop: "4px", marginBottom: "16px" }}>
+            <button
+              type="button"
+              style={{
+                background: "none",
+                border: "none",
+                padding: 0,
+                color: "#6366f1",
+                fontSize: "13px",
+                fontWeight: 500,
+                cursor: "pointer",
+                textDecoration: "underline"
+              }}
+              onClick={openForgotPassword}
+            >
+              Forgot password?
+            </button>
+          </div>
+
+          <button
+            className="auth-btn"
+            type="submit"
+            disabled={busy}
+          >
+            {busy ? t("login.submitting") : t("login.submit")}
+          </button>
+        </div>
+      </form>
+    </div>
+  );
+}
