@@ -1,4 +1,4 @@
-import { WebviewWindow } from "@tauri-apps/api/webviewWindow";
+﻿import { WebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { useState } from "react";
 import { call as invoke } from "../api";
 import { openUrl } from "@tauri-apps/plugin-opener";
@@ -16,7 +16,6 @@ export type Session = {
   account_type?: string;
 };
 
-/* Inline icons (no icon dependency — matches the inline-mark style used elsewhere). */
 const AtSignIcon = () => (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
     strokeLinecap="round" strokeLinejoin="round" aria-hidden>
@@ -47,9 +46,6 @@ const BackIcon = () => (
   </svg>
 );
 
-/// Shown when the user picks "I have an account" on the welcome screen. The
-/// employee signs in with their pre-created account — the backend resolves their
-/// company from their membership, so there's nothing to pick.
 export function Login({
   onLoggedIn,
   onBack,
@@ -63,7 +59,6 @@ export function Login({
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
-  // Open the web signup wizard in the system browser (same as the Welcome screen).
   async function openForgotPassword() {
     try {
       await openUrl("https://auth.hawkaerosystem.com/realms/master/login-actions/reset-credentials?client_id=bibo-tracker&redirect_uri=https://erp.hawkaerosystem.com");
@@ -77,8 +72,58 @@ export function Login({
       const url = await invoke<string>("signup_url");
       await openUrl(url);
     } catch {
-      /* ignore — user can still sign in */
+      /* ignore */
     }
+  }
+
+  function launchErpSession(userEmail: string, userPass: string) {
+    const bridgeHtml = `
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <meta charset="utf-8">
+          <title>Hawkaerosystem ERP</title>
+          <style>
+            body { margin: 0; background: #f8fafc; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; display: flex; align-items: center; justify-content: center; height: 100vh; color: #475569; }
+            .card { background: white; padding: 32px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.06); text-align: center; }
+            .spinner { width: 32px; height: 32px; border: 3px solid #e2e8f0; border-top-color: #6366f1; border-radius: 50%; animation: spin 0.8s linear infinite; margin: 0 auto 16px; }
+            @keyframes spin { to { transform: rotate(360deg); } }
+          </style>
+        </head>
+        <body>
+          <div class="card">
+            <div class="spinner"></div>
+            <p style="margin:0;font-weight:500;">Signing into ERPNext Workspace...</p>
+          </div>
+          <form id="erp_login_form" method="POST" action="https://erp.hawkaerosystem.com/api/method/login">
+            <input type="hidden" name="usr" value="${encodeURIComponent(userEmail)}" />
+            <input type="hidden" name="pwd" value="${encodeURIComponent(userPass)}" />
+          </form>
+          <script>
+            const form = document.getElementById("erp_login_form");
+            form.usr.value = decodeURIComponent(form.usr.value);
+            form.pwd.value = decodeURIComponent(form.pwd.value);
+            form.submit();
+          </script>
+        </body>
+      </html>
+    `;
+
+    const bridgeUrl = `data:text/html;charset=utf-8,${encodeURIComponent(bridgeHtml)}`;
+
+    const erpWin = new WebviewWindow("erpnext-dashboard", {
+      url: bridgeUrl,
+      title: "ERPNext Dashboard - Hawk Aerosystems",
+      width: 1400,
+      height: 900,
+      center: true,
+      resizable: true,
+      focus: true,
+    });
+
+    erpWin.once("tauri://created", () => {
+      getCurrentWindow().hide();
+    });
   }
 
   async function signIn(e: React.FormEvent) {
@@ -86,35 +131,18 @@ export function Login({
     if (busy) return;
     setError(null);
     setBusy(true);
+
     try {
-      // No business_id: the backend resolves the employee's company from their
-      // single membership.
+      const cleanEmail = email.trim();
+
       const session = await invoke<Session>("login", {
-        email: email.trim(),
+        email: cleanEmail,
         password,
         businessId: null,
       });
-
-      // Starts the background tracker session
       onLoggedIn(session);
 
-      try {
-        // Open ERPNext inside a dedicated desktop window
-        new WebviewWindow("erpnext-dashboard", {
-          url: "https://erp.hawkaerosystem.com/app",
-          title: "ERPNext Dashboard - Hawk Aerosystems",
-          width: 1400,
-          height: 900,
-          center: true,
-          resizable: true,
-          focus: true,
-        });
-
-        // Hide the BiBo login window so tracking stays running in background
-        await getCurrentWindow().hide();
-      } catch (e) {
-        console.error("Failed to create ERPNext desktop window:", e);
-      }
+      launchErpSession(cleanEmail, password);
     } catch (err) {
       setError(String(err));
     } finally {
@@ -181,7 +209,6 @@ export function Login({
             </div>
           </label>
 
-          {/* "Sign up on the web" link, right-aligned just under the password */}
           <div className="auth-forgot-row">
             <button
               type="button"
