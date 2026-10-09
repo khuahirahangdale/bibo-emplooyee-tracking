@@ -1,6 +1,7 @@
 import { WebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { useState } from "react";
 import { call as invoke } from "../api";
+import { openUrl } from "@tauri-apps/plugin-opener";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { useTranslation } from "react-i18next";
 import { BrandMark } from "../ui";
@@ -15,6 +16,7 @@ export type Session = {
   account_type?: string;
 };
 
+/* Inline icons (no icon dependency — matches the inline-mark style used elsewhere). */
 const AtSignIcon = () => (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
     strokeLinecap="round" strokeLinejoin="round" aria-hidden>
@@ -45,6 +47,9 @@ const BackIcon = () => (
   </svg>
 );
 
+/// Shown when the user picks "I have an account" on the welcome screen. The
+/// employee signs in with their pre-created account — the backend resolves their
+/// company from their membership, so there's nothing to pick.
 export function Login({
   onLoggedIn,
   onBack,
@@ -58,66 +63,21 @@ export function Login({
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
-  function launchErpWindow(cleanEmail: string, cleanPassword: string) {
+  // Open the web signup wizard in the system browser (same as the Welcome screen).
+  async function openForgotPassword() {
     try {
-      // Auto-submits credentials inside the WebView context to acquire the Frappe sid session cookie natively
-      const htmlPayload = `
-        <!DOCTYPE html>
-        <html>
-          <head>
-            <meta charset="utf-8">
-            <title>Authenticating...</title>
-            <style>
-              body { background: #f4f5f7; display: flex; align-items: center; justify-content: center; height: 100vh; font-family: sans-serif; color: #555; }
-            </style>
-          </head>
-          <body>
-            <p>Connecting to ERPNext Dashboard...</p>
-            <form id="f" method="POST" action="https://erp.hawkaerosystem.com/api/method/login">
-              <input type="hidden" name="usr" value="${encodeURIComponent(cleanEmail)}" />
-              <input type="hidden" name="pwd" value="${encodeURIComponent(cleanPassword)}" />
-            </form>
-            <script>
-              const f = document.getElementById("f");
-              f.usr.value = decodeURIComponent(f.usr.value);
-              f.pwd.value = decodeURIComponent(f.pwd.value);
-              f.submit();
-            </script>
-          </body>
-        </html>
-      `;
-
-      const dataUri = `data:text/html;charset=utf-8,${encodeURIComponent(htmlPayload)}`;
-
-      new WebviewWindow("erpnext-dashboard", {
-        url: dataUri,
-        title: "ERPNext Dashboard - Hawk Aerosystems",
-        width: 1400,
-        height: 900,
-        center: true,
-        resizable: true,
-        focus: true,
-      });
-
-      getCurrentWindow().hide();
-    } catch (e) {
-      console.error("Failed to launch ERPNext window:", e);
+      await openUrl("https://auth.hawkaerosystem.com/realms/master/login-actions/reset-credentials?client_id=bibo-tracker&redirect_uri=https://erp.hawkaerosystem.com");
+    } catch (err) {
+      console.error("Failed to open reset password URL:", err);
     }
   }
 
-  function openForgotPassword() {
+  async function openSignup() {
     try {
-      new WebviewWindow("erpnext-forgot-password", {
-        url: "https://erp.hawkaerosystem.com/login#forgot",
-        title: "Reset Password - Hawk Aerosystems",
-        width: 600,
-        height: 700,
-        center: true,
-        resizable: true,
-        focus: true,
-      });
-    } catch (err) {
-      console.error("Failed to open forgot password window:", err);
+      const url = await invoke<string>("signup_url");
+      await openUrl(url);
+    } catch {
+      /* ignore — user can still sign in */
     }
   }
 
@@ -126,20 +86,35 @@ export function Login({
     if (busy) return;
     setError(null);
     setBusy(true);
-
     try {
-      const cleanEmail = email.trim();
-
-      // 1. Authenticate BiBo background tracker daemon
+      // No business_id: the backend resolves the employee's company from their
+      // single membership.
       const session = await invoke<Session>("login", {
-        email: cleanEmail,
+        email: email.trim(),
         password,
         businessId: null,
       });
+
+      // Starts the background tracker session
       onLoggedIn(session);
 
-      // 2. Launch ERPNext directly using the user's password
-      launchErpWindow(cleanEmail, password);
+      try {
+        // Open ERPNext inside a dedicated desktop window
+        new WebviewWindow("erpnext-dashboard", {
+          url: "https://erp.hawkaerosystem.com/app",
+          title: "ERPNext Dashboard - Hawk Aerosystems",
+          width: 1400,
+          height: 900,
+          center: true,
+          resizable: true,
+          focus: true,
+        });
+
+        // Hide the BiBo login window so tracking stays running in background
+        await getCurrentWindow().hide();
+      } catch (e) {
+        console.error("Failed to create ERPNext desktop window:", e);
+      }
     } catch (err) {
       setError(String(err));
     } finally {
@@ -201,27 +176,35 @@ export function Login({
                 autoComplete="current-password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                placeholder="Password"
+                placeholder="••••••••"
               />
             </div>
           </label>
 
-          <div style={{ display: "flex", justifyContent: "flex-end", marginTop: "4px", marginBottom: "16px" }}>
+          {/* "Sign up on the web" link, right-aligned just under the password */}
+          <div className="auth-forgot-row">
             <button
               type="button"
-              style={{
-                background: "none",
-                border: "none",
-                padding: 0,
-                color: "#6366f1",
-                fontSize: "13px",
-                fontWeight: 500,
-                cursor: "pointer",
-                textDecoration: "underline"
-              }}
+              className="auth-signup"
+              style={{ cursor: "pointer", background: "none", border: "none", padding: 0 }}
               onClick={openForgotPassword}
             >
               Forgot password?
+            </button>
+            <button type="button" className="auth-signup" onClick={openSignup}>
+              {t("login.signupLink")}
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden
+              >
+                <path d="M5 12h14" />
+                <path d="m12 5 7 7-7 7" />
+              </svg>
             </button>
           </div>
 
