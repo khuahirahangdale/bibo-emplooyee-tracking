@@ -58,11 +58,11 @@ export function Login({
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
-  // Keycloak password reset window with automatic close & redirect
-  async function openForgotPassword() {
+  // Keycloak password reset window
+  function openForgotPassword() {
     try {
       const resetWin = new WebviewWindow("keycloak-reset-password", {
-        url: "https://auth.hawkaerosystem.com/realms/master/login-actions/reset-credentials?client_id=bibo-tracker&redirect_uri=https://erp.hawkaerosystem.com",
+        url: "https://auth.hawkaerosystem.com/realms/master/login-actions/reset-credentials?client_id=bibo-tracker",
         title: "Reset Password - Hawk Aerosystems",
         width: 600,
         height: 700,
@@ -71,36 +71,9 @@ export function Login({
         focus: true,
       });
 
-      // 1. Detect navigation back to ERPNext when user finishes or clicks continue
-      await resetWin.onNavigation((url) => {
-        if (url.includes("erp.hawkaerosystem.com") || url.includes("login-status-iframe")) {
-          resetWin.close();
-          getCurrentWindow().setFocus();
-          return false;
-        }
-        return true;
-      });
-
-      // 2. Fallback: Automatically detect the "Account updated" page and close after 2.5 seconds
-      resetWin.once("tauri://created", () => {
-        const interval = setInterval(async () => {
-          try {
-            await resetWin.eval(`
-              if (document.body && (document.body.innerText.includes("Account updated") || document.body.innerText.includes("Your account has been updated"))) {
-                setTimeout(() => {
-                  window.__TAURI_INTERNALS__?.invoke?.("plugin:window|close");
-                }, 2500);
-              }
-            `);
-          } catch {
-            clearInterval(interval);
-          }
-        }, 1000);
-
-        resetWin.once("tauri://destroyed", () => {
-          clearInterval(interval);
-          getCurrentWindow().setFocus();
-        });
+      // Refocus the main login window once the user finishes and closes the reset window
+      resetWin.once("tauri://destroyed", () => {
+        getCurrentWindow().setFocus();
       });
     } catch (err) {
       console.error("Failed to open reset password window:", err);
@@ -123,114 +96,4 @@ export function Login({
 
       try {
         new WebviewWindow("erpnext-dashboard", {
-          url: "https://erp.hawkaerosystem.com/app",
-          title: "ERPNext Dashboard - Hawk Aerosystems",
-          width: 1400,
-          height: 900,
-          center: true,
-          resizable: true,
-          focus: true,
-        });
-
-        await getCurrentWindow().hide();
-      } catch (e) {
-        console.error("Failed to create ERPNext desktop window:", e);
-      }
-    } catch (err) {
-      setError(String(err));
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  return (
-    <div className="login welcome">
-      <AuthTitleBar />
-      {onBack && (
-        <button type="button" className="welcome-back" onClick={onBack}>
-          <BackIcon />
-          {t("login.back")}
-        </button>
-      )}
-      <div className="welcome-lang">
-        <LanguageSwitcher compact />
-      </div>
-
-      <BrandMark />
-      <form className="login-card" onSubmit={signIn}>
-        <h1 className="login-title">{t("login.title")}</h1>
-        <p className="login-sub">{t("login.subtitle")}</p>
-
-        <div className="auth-form">
-          {error && (
-            <div className="auth-err" role="alert">
-              <AlertIcon />
-              {error}
-            </div>
-          )}
-
-          <label className="auth-field">
-            <span className="auth-field-lbl">{t("login.identifier")}</span>
-            <div className="auth-input">
-              <span className="auth-input-ic">
-                <AtSignIcon />
-              </span>
-              <input
-                type="text"
-                autoComplete="username"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="you@example.com"
-                autoFocus
-              />
-            </div>
-          </label>
-
-          <label className="auth-field">
-            <span className="auth-field-lbl">{t("login.password")}</span>
-            <div className="auth-input">
-              <span className="auth-input-ic">
-                <LockIcon />
-              </span>
-              <input
-                type="password"
-                autoComplete="current-password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="••••••••"
-              />
-            </div>
-          </label>
-
-          {/* Connected to Keycloak Reset Flow */}
-          <div style={{ display: "flex", justifyContent: "flex-end", marginTop: "4px", marginBottom: "16px" }}>
-            <button
-              type="button"
-              style={{
-                background: "none",
-                border: "none",
-                padding: 0,
-                color: "#6366f1",
-                fontSize: "13px",
-                fontWeight: 500,
-                cursor: "pointer",
-                textDecoration: "underline"
-              }}
-              onClick={openForgotPassword}
-            >
-              Forgot password?
-            </button>
-          </div>
-
-          <button
-            className="auth-btn"
-            type="submit"
-            disabled={busy}
-          >
-            {busy ? t("login.submitting") : t("login.submit")}
-          </button>
-        </div>
-      </form>
-    </div>
-  );
-}
+          url: "
