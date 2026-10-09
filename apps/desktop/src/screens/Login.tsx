@@ -1,4 +1,4 @@
-﻿import { WebviewWindow } from "@tauri-apps/api/webviewWindow";
+import { WebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { useState } from "react";
 import { call as invoke } from "../api";
 import { getCurrentWindow } from "@tauri-apps/api/window";
@@ -58,10 +58,11 @@ export function Login({
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
+  // Launches the ERPNext dashboard through Keycloak SSO
   function launchErpDashboard() {
     try {
       new WebviewWindow("erpnext-dashboard", {
-        url: "https://erp.hawkaerosystem.com/app",
+        url: "https://erp.hawkaerosystem.com/api/method/frappe.integrations.oauth2_logins.login_via_oauth2?provider=keycloak",
         title: "ERPNext Dashboard - Hawk Aerosystems",
         width: 1400,
         height: 900,
@@ -76,11 +77,11 @@ export function Login({
     }
   }
 
-  // Opens ERPNext self-service reset password popup
+  // Opens Keycloak self-service password reset popup
   function openForgotPassword() {
     try {
-      const resetWin = new WebviewWindow("erpnext-forgot-password", {
-        url: "https://erp.hawkaerosystem.com/login#forgot",
+      const resetWin = new WebviewWindow("keycloak-reset-password", {
+        url: "https://auth.hawkaerosystem.com/realms/master/login-actions/reset-credentials?client_id=bibo-tracker",
         title: "Reset Password - Hawk Aerosystems",
         width: 600,
         height: 700,
@@ -89,8 +90,9 @@ export function Login({
         focus: true,
       });
 
+      // Once the user finishes updating password and closes the popup, launch ERPNext via SSO
       resetWin.once("tauri://destroyed", () => {
-        getCurrentWindow().setFocus();
+        launchErpDashboard();
       });
     } catch (err) {
       console.error("Failed to open reset password window:", err);
@@ -106,7 +108,7 @@ export function Login({
     try {
       const cleanEmail = email.trim();
 
-      // 1. Authenticate BiBo tracking daemon
+      // 1. Authenticate BiBo tracking daemon against Keycloak
       const session = await invoke<Session>("login", {
         email: cleanEmail,
         password,
@@ -114,7 +116,7 @@ export function Login({
       });
       onLoggedIn(session);
 
-      // 2. Launch ERPNext dashboard directly
+      // 2. Launch ERPNext workspace via Keycloak SSO
       launchErpDashboard();
     } catch (err) {
       setError(String(err));
@@ -182,6 +184,7 @@ export function Login({
             </div>
           </label>
 
+          {/* Keycloak Forgot Password */}
           <div style={{ display: "flex", justifyContent: "flex-end", marginTop: "4px", marginBottom: "16px" }}>
             <button
               type="button"
