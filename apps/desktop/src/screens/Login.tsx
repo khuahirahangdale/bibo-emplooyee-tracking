@@ -58,17 +58,49 @@ export function Login({
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
-  // Keycloak password reset window
-  function openForgotPassword() {
+  // Keycloak password reset window with automatic close & redirect
+  async function openForgotPassword() {
     try {
-      new WebviewWindow("keycloak-reset-password", {
-        url: "https://auth.hawkaerosystem.com/realms/master/login-actions/reset-credentials?client_id=bibo-tracker",
+      const resetWin = new WebviewWindow("keycloak-reset-password", {
+        url: "https://auth.hawkaerosystem.com/realms/master/login-actions/reset-credentials?client_id=bibo-tracker&redirect_uri=https://erp.hawkaerosystem.com",
         title: "Reset Password - Hawk Aerosystems",
         width: 600,
         height: 700,
         center: true,
         resizable: true,
         focus: true,
+      });
+
+      // 1. Detect navigation back to ERPNext when user finishes or clicks continue
+      await resetWin.onNavigation((url) => {
+        if (url.includes("erp.hawkaerosystem.com") || url.includes("login-status-iframe")) {
+          resetWin.close();
+          getCurrentWindow().setFocus();
+          return false;
+        }
+        return true;
+      });
+
+      // 2. Fallback: Automatically detect the "Account updated" page and close after 2.5 seconds
+      resetWin.once("tauri://created", () => {
+        const interval = setInterval(async () => {
+          try {
+            await resetWin.eval(`
+              if (document.body && (document.body.innerText.includes("Account updated") || document.body.innerText.includes("Your account has been updated"))) {
+                setTimeout(() => {
+                  window.__TAURI_INTERNALS__?.invoke?.("plugin:window|close");
+                }, 2500);
+              }
+            `);
+          } catch {
+            clearInterval(interval);
+          }
+        }, 1000);
+
+        resetWin.once("tauri://destroyed", () => {
+          clearInterval(interval);
+          getCurrentWindow().setFocus();
+        });
       });
     } catch (err) {
       console.error("Failed to open reset password window:", err);
