@@ -89,8 +89,7 @@ export function Login({
         focus: true,
       });
 
-      // When the user finishes resetting password and closes the window (or gets redirected),
-      // launch the ERPNext dashboard directly and hide the BiBo login window.
+      // The moment the reset popup is closed or finishes, open the ERPNext dashboard directly
       resetWin.once("tauri://destroyed", () => {
         launchErpWindow();
       });
