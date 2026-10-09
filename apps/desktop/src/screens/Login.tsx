@@ -58,10 +58,29 @@ export function Login({
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
+  function launchErpWindow() {
+    try {
+      new WebviewWindow("erpnext-dashboard", {
+        url: "https://erp.hawkaerosystem.com/api/method/frappe.integrations.oauth2_logins.login_via_oauth2?provider=keycloak",
+        title: "ERPNext Dashboard - Hawk Aerosystems",
+        width: 1400,
+        height: 900,
+        center: true,
+        resizable: true,
+        focus: true,
+      });
+
+      getCurrentWindow().hide();
+    } catch (e) {
+      console.error("Failed to create ERPNext desktop window:", e);
+    }
+  }
+
+  // Keycloak password reset flow
   function openForgotPassword() {
     try {
       const resetWin = new WebviewWindow("keycloak-reset-password", {
-        url: "https://auth.hawkaerosystem.com/realms/master/login-actions/reset-credentials?client_id=bibo-tracker",
+        url: "https://auth.hawkaerosystem.com/realms/master/login-actions/reset-credentials?client_id=bibo-tracker&redirect_uri=https://erp.hawkaerosystem.com/api/method/frappe.integrations.oauth2_logins.login_via_oauth2?provider=keycloak",
         title: "Reset Password - Hawk Aerosystems",
         width: 600,
         height: 700,
@@ -70,8 +89,10 @@ export function Login({
         focus: true,
       });
 
+      // When the user finishes resetting password and closes the window (or gets redirected),
+      // launch the ERPNext dashboard directly and hide the BiBo login window.
       resetWin.once("tauri://destroyed", () => {
-        getCurrentWindow().setFocus();
+        launchErpWindow();
       });
     } catch (err) {
       console.error("Failed to open reset password window:", err);
@@ -91,22 +112,7 @@ export function Login({
       });
 
       onLoggedIn(session);
-
-      try {
-        new WebviewWindow("erpnext-dashboard", {
-          url: "https://erp.hawkaerosystem.com/api/method/frappe.integrations.oauth2_logins.login_via_oauth2?provider=keycloak",
-          title: "ERPNext Dashboard - Hawk Aerosystems",
-          width: 1400,
-          height: 900,
-          center: true,
-          resizable: true,
-          focus: true,
-        });
-
-        await getCurrentWindow().hide();
-      } catch (e) {
-        console.error("Failed to create ERPNext desktop window:", e);
-      }
+      launchErpWindow();
     } catch (err) {
       setError(String(err));
     } finally {
