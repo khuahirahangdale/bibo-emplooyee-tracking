@@ -94,7 +94,7 @@ export function Login({
 
       try {
         new WebviewWindow("erpnext-dashboard", {
-          url: "https://erp.hawkaerosystem.com/app",
+          url: "https://erp.hawkaerosystem.com/api/method/frappe.integrations.oauth2_logins.login_via_oauth2?provider=keycloak",
           title: "ERPNext Dashboard - Hawk Aerosystems",
           width: 1400,
           height: 900,
