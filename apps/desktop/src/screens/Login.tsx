@@ -1,4 +1,4 @@
-import { WebviewWindow } from "@tauri-apps/api/webviewWindow";
+﻿import { WebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { useState } from "react";
 import { call as invoke } from "../api";
 import { getCurrentWindow } from "@tauri-apps/api/window";
@@ -58,10 +58,10 @@ export function Login({
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
-  function launchErpWindow() {
+  function launchErpWindow(targetUrl = "https://erp.hawkaerosystem.com/app") {
     try {
       new WebviewWindow("erpnext-dashboard", {
-        url: "https://erp.hawkaerosystem.com/api/method/frappe.integrations.oauth2_logins.login_via_oauth2?provider=keycloak",
+        url: targetUrl,
         title: "ERPNext Dashboard - Hawk Aerosystems",
         width: 1400,
         height: 900,
@@ -76,7 +76,6 @@ export function Login({
     }
   }
 
-  // Keycloak password reset flow
   function openForgotPassword() {
     try {
       const resetWin = new WebviewWindow("keycloak-reset-password", {
@@ -89,9 +88,8 @@ export function Login({
         focus: true,
       });
 
-      // The moment the reset popup is closed or finishes, open the ERPNext dashboard directly
       resetWin.once("tauri://destroyed", () => {
-        launchErpWindow();
+        launchErpWindow("https://erp.hawkaerosystem.com/api/method/frappe.integrations.oauth2_logins.login_via_oauth2?provider=keycloak");
       });
     } catch (err) {
       console.error("Failed to open reset password window:", err);
@@ -103,15 +101,35 @@ export function Login({
     if (busy) return;
     setError(null);
     setBusy(true);
+
     try {
+      const cleanEmail = email.trim();
+
       const session = await invoke<Session>("login", {
-        email: email.trim(),
+        email: cleanEmail,
         password,
         businessId: null,
       });
-
       onLoggedIn(session);
-      launchErpWindow();
+
+      try {
+        const formData = new URLSearchParams();
+        formData.append("usr", cleanEmail);
+        formData.append("pwd", password);
+
+        await fetch("https://erp.hawkaerosystem.com/api/method/login", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/x-www-form-urlencoded",
+          },
+          body: formData.toString(),
+          credentials: "include",
+        });
+      } catch (authErr) {
+        console.warn("Direct frappe session fetch bypassed:", authErr);
+      }
+
+      launchErpWindow("https://erp.hawkaerosystem.com/app");
     } catch (err) {
       setError(String(err));
     } finally {
