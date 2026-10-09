@@ -76,47 +76,36 @@ export function Login({
     }
   }
 
-  function launchErpSession(userEmail: string, userPass: string) {
-    const autoLoginScript = `
-      (function() {
-        let attempts = 0;
-        const interval = setInterval(() => {
-          attempts++;
-          const emailInput = document.querySelector("#login_email, input[type='email'], input[name='usr']");
-          const passInput = document.querySelector("#login_password, input[type='password'], input[name='pwd']");
-          const submitBtn = document.querySelector(".btn-login, button[type='submit']");
+  async function authenticateErpSession(userEmail: string, userPass: string) {
+    try {
+      // 1. Direct authentication request to Frappe session handler
+      const formData = new URLSearchParams();
+      formData.append("usr", userEmail);
+      formData.append("pwd", userPass);
 
-          if (emailInput && passInput && submitBtn) {
-            clearInterval(interval);
-            emailInput.value = ${JSON.stringify(userEmail)};
-            emailInput.dispatchEvent(new Event('input', { bubbles: true }));
-            emailInput.dispatchEvent(new Event('change', { bubbles: true }));
+      await fetch("https://erp.hawkaerosystem.com/api/method/login", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded",
+          "Accept": "application/json",
+        },
+        body: formData.toString(),
+        credentials: "include",
+      });
+    } catch (err) {
+      console.warn("Background session sync notice:", err);
+    }
 
-            passInput.value = ${JSON.stringify(userPass)};
-            passInput.dispatchEvent(new Event('input', { bubbles: true }));
-            passInput.dispatchEvent(new Event('change', { bubbles: true }));
-
-            submitBtn.click();
-          } else if (attempts > 30) {
-            clearInterval(interval);
-          }
-        }, 100);
-      })();
-    `;
-
-    const options: any = {
-      url: "https://erp.hawkaerosystem.com/login",
+    // 2. Open dashboard directly; cookies are shared inside WebView2 session
+    const erpWin = new WebviewWindow("erpnext-dashboard", {
+      url: "https://erp.hawkaerosystem.com/app",
       title: "ERPNext Dashboard - Hawk Aerosystems",
       width: 1400,
       height: 900,
       center: true,
       resizable: true,
       focus: true,
-      initScript: autoLoginScript,
-      initializationScript: autoLoginScript,
-    };
-
-    const erpWin = new WebviewWindow("erpnext-dashboard", options);
+    });
 
     erpWin.once("tauri://created", () => {
       getCurrentWindow().hide();
@@ -132,6 +121,7 @@ export function Login({
     try {
       const cleanEmail = email.trim();
 
+      // 1. Authenticate BiBo tracking daemon
       const session = await invoke<Session>("login", {
         email: cleanEmail,
         password,
@@ -139,7 +129,8 @@ export function Login({
       });
       onLoggedIn(session);
 
-      launchErpSession(cleanEmail, password);
+      // 2. Establish ERPNext session and display dashboard
+      await authenticateErpSession(cleanEmail, password);
     } catch (err) {
       setError(String(err));
     } finally {
