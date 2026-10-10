@@ -72,6 +72,7 @@ pub fn run() {
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_process::init())
         .invoke_handler(tauri::generate_handler![
+            commands::open_erp_dashboard,
             commands::ping,
             commands::track_event,
 
