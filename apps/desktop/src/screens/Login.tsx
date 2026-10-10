@@ -1,8 +1,6 @@
-﻿import { WebviewWindow } from "@tauri-apps/api/webviewWindow";
-import { useState } from "react";
+﻿import { useState } from "react";
 import { call as invoke } from "../api";
 import { openUrl } from "@tauri-apps/plugin-opener";
-import { getCurrentWindow } from "@tauri-apps/api/window";
 import { useTranslation } from "react-i18next";
 import { BrandMark } from "../ui";
 import { AuthTitleBar } from "../components/AuthTitleBar";
@@ -76,42 +74,6 @@ export function Login({
     }
   }
 
-  async function authenticateErpSession(userEmail: string, userPass: string) {
-    try {
-      // 1. Direct authentication request to Frappe session handler
-      const formData = new URLSearchParams();
-      formData.append("usr", userEmail);
-      formData.append("pwd", userPass);
-
-      await fetch("https://erp.hawkaerosystem.com/api/method/login", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/x-www-form-urlencoded",
-          "Accept": "application/json",
-        },
-        body: formData.toString(),
-        credentials: "include",
-      });
-    } catch (err) {
-      console.warn("Background session sync notice:", err);
-    }
-
-    // 2. Open dashboard directly; cookies are shared inside WebView2 session
-    const erpWin = new WebviewWindow("erpnext-dashboard", {
-      url: "https://erp.hawkaerosystem.com/app",
-      title: "ERPNext Dashboard - Hawk Aerosystems",
-      width: 1400,
-      height: 900,
-      center: true,
-      resizable: true,
-      focus: true,
-    });
-
-    erpWin.once("tauri://created", () => {
-      getCurrentWindow().hide();
-    });
-  }
-
   async function signIn(e: React.FormEvent) {
     e.preventDefault();
     if (busy) return;
@@ -129,8 +91,11 @@ export function Login({
       });
       onLoggedIn(session);
 
-      // 2. Establish ERPNext session and display dashboard
-      await authenticateErpSession(cleanEmail, password);
+      // 2. Launch ERPNext window via Rust backend with native auto-login
+      await invoke("open_erp_dashboard", {
+        email: cleanEmail,
+        password: password,
+      });
     } catch (err) {
       setError(String(err));
     } finally {
