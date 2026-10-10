@@ -885,6 +885,7 @@ pub async fn open_erp_dashboard(
     let target_url = "https://erp.hawkaerosystem.com/app";
 
     if let Some(window) = app.get_webview_window("erp_dashboard") {
+        let _ = window.show();
         let _ = window.set_focus();
         return Ok(());
     }
@@ -895,7 +896,13 @@ pub async fn open_erp_dashboard(
     let sso_script = format!(
         concat!(
             "(function() {{",
-            "  function fillKeycloak() {{",
+            "  function handleAuth() {{",
+            "    if (window.location.pathname.startsWith('/app')) {{",
+            "      if (window.__TAURI_INTERNALS__) {{",
+            "        window.__TAURI_INTERNALS__.invoke('plugin:window|show', {{}}).catch(() => {{}});",
+            "      }}",
+            "      return true;",
+            "    }}",
             "    const user = document.querySelector('#username, input[name=\"username\"], #email');",
             "    const pass = document.querySelector('#password, input[name=\"password\"]');",
             "    const submit = document.querySelector('#kc-login, input[type=\"submit\"], button[type=\"submit\"]');",
@@ -909,20 +916,16 @@ pub async fn open_erp_dashboard(
             "    }}",
             "    return false;",
             "  }}",
-            "  let attempts = 0;",
-            "  const timer = setInterval(function() {{",
-            "    attempts++;",
-            "    if (fillKeycloak() || attempts > 40) {{",
-            "      clearInterval(timer);",
-            "    }}",
-            "  }}, 250);",
+            "  const timer = setInterval(() => {{",
+            "    if (handleAuth()) clearInterval(timer);",
+            "  }}, 150);",
             "}})();"
         ),
         usr = escaped_email,
         pwd = escaped_password
     );
 
-    tauri::WebviewWindowBuilder::new(
+    let window = tauri::WebviewWindowBuilder::new(
         &app,
         "erp_dashboard",
         tauri::WebviewUrl::App(target_url.into()),
@@ -931,8 +934,17 @@ pub async fn open_erp_dashboard(
     .initialization_script(&sso_script)
     .inner_size(1280.0, 800.0)
     .resizable(true)
+    .visible(false) // Keeps the window hidden while Keycloak authenticates in the background
     .build()
     .map_err(|e| e.to_string())?;
+
+    // Safety fallback: reveal the window after authentication completes
+    let win_clone = window.clone();
+    tauri::async_runtime::spawn(async move {
+        tokio::time::sleep(std::time::Duration::from_millis(3500)).await;
+        let _ = win_clone.show();
+        let _ = win_clone.set_focus();
+    });
 
     Ok(())
 }
