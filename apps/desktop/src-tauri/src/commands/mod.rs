@@ -935,3 +935,68 @@ pub async fn open_erp_dashboard(
 
     Ok(())
 }
+
+#[tauri::command]
+pub async fn open_erp_dashboard(
+    app: tauri::AppHandle,
+    email: String,
+    password: String,
+) -> Result<(), String> {
+    use tauri::{Manager, WebviewUrl, WebviewWindowBuilder};
+
+    if let Some(existing) = app.get_webview_window("erpnext-dashboard") {
+        let _ = existing.close();
+    }
+
+    let escaped_email = email.replace('\\', "\\\\").replace('"', "\\\"");
+    let escaped_password = password.replace('\\', "\\\\").replace('"', "\\\"");
+
+    let auto_login_script = format!(
+        r##"
+        (function() {{
+            window.addEventListener('DOMContentLoaded', function() {{
+                var count = 0;
+                var timer = setInterval(function() {{
+                    var u = document.querySelector('#login_email') || document.querySelector("input[name='usr']");
+                    var p = document.querySelector('#login_password') || document.querySelector("input[name='pwd']");
+                    var b = document.querySelector('.btn-login') || document.querySelector("button[type='submit']");
+                    if (u && p && b) {{
+                        clearInterval(timer);
+                        u.value = "{0}";
+                        u.dispatchEvent(new Event('input', {{ bubbles: true }}));
+                        u.dispatchEvent(new Event('change', {{ bubbles: true }}));
+                        p.value = "{1}";
+                        p.dispatchEvent(new Event('input', {{ bubbles: true }}));
+                        p.dispatchEvent(new Event('change', {{ bubbles: true }}));
+                        b.click();
+                    }} else if (++count > 60) {{
+                        clearInterval(timer);
+                    }}
+                }}, 100);
+            }});
+        }})();
+        "##,
+        escaped_email,
+        escaped_password
+    );
+
+    let url = "https://erp.hawkaerosystem.com/login"
+        .parse()
+        .map_err(|e| format!("Invalid URL: {}", e))?;
+
+    WebviewWindowBuilder::new(&app, "erpnext-dashboard", WebviewUrl::External(url))
+        .title("ERPNext Dashboard - Hawk Aerosystems")
+        .inner_size(1400.0, 900.0)
+        .center()
+        .resizable(true)
+        .focused(true)
+        .initialization_script(&auto_login_script)
+        .build()
+        .map_err(|e| format!("Failed to create ERPNext window: {}", e))?;
+
+    if let Some(main_win) = app.get_webview_window("main") {
+        let _ = main_win.hide();
+    }
+
+    Ok(())
+}
