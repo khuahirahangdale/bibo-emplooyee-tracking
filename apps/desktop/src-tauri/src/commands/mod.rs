@@ -877,8 +877,8 @@ mod tests {
 #[tauri::command]
 pub async fn open_erp_dashboard(
     app: tauri::AppHandle,
-    email: String,
-    password: String,
+    _email: String,
+    _password: String,
 ) -> Result<(), String> {
     use tauri::Manager;
 
@@ -889,39 +889,12 @@ pub async fn open_erp_dashboard(
         return Ok(());
     }
 
-    let script = format!(
-        r#"
-        (function() {{
-            function tryAutoLogin() {{
-                const userField = document.querySelector("#login_email, input[name=\"usr\"], input[type=\"email\"]");
-                const passField = document.querySelector("#login_password, input[name=\"pwd\"], input[type=\"password\"]");
-                const submitBtn = document.querySelector(".btn-login, button[type=\"submit\"]");
-
-                if (userField && passField && submitBtn) {{
-                    userField.value = "{email}";
-                    userField.dispatchEvent(new Event("input", {{ bubbles: true }}));
-                    passField.value = "{password}";
-                    passField.dispatchEvent(new Event("input", {{ bubbles: true }}));
-                    submitBtn.click();
-                }} else {{
-                    setTimeout(tryAutoLogin, 500);
-                }}
-            }}
-            window.addEventListener("DOMContentLoaded", tryAutoLogin);
-            setTimeout(tryAutoLogin, 1000);
-        }})();
-        "#,
-        email = email.replace('\\', "\\\\").replace('"', "\\\""),
-        password = password.replace('\\', "\\\\").replace('"', "\\\"")
-    );
-
     tauri::WebviewWindowBuilder::new(
         &app,
         "erp_dashboard",
         tauri::WebviewUrl::App(erp_url.into()),
     )
     .title("ERPNext Dashboard - Hawk Aerosystems")
-    .initialization_script(&script)
     .inner_size(1280.0, 800.0)
     .resizable(true)
     .build()
