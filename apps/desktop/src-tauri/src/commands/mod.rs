@@ -882,69 +882,64 @@ pub async fn open_erp_dashboard(
 ) -> Result<(), String> {
     use tauri::Manager;
 
-    let target_url = "https://erp.hawkaerosystem.com/app";
+    let base_url = "https://erp.hawkaerosystem.com";
+    let login_endpoint = format!("{}/api/method/login", base_url);
+    let dashboard_url = format!("{}/app", base_url);
 
+    // 1. Focus existing window if already open
     if let Some(window) = app.get_webview_window("erp_dashboard") {
         let _ = window.show();
         let _ = window.set_focus();
         return Ok(());
     }
 
-    let escaped_email = email.replace('\\', "\\\\").replace('"', "\\\"").replace('`', "\\`");
-    let escaped_password = password.replace('\\', "\\\\").replace('"', "\\\"").replace('`', "\\`");
+    // 2. Perform direct Frappe session login using standard reqwest
+    let client = reqwest::Client::builder()
+        .cookie_store(true)
+        .build()
+        .map_err(|e| e.to_string())?;
 
-    let sso_script = format!(
-        concat!(
-            "(function() {{",
-            "  function handleAuth() {{",
-            "    if (window.location.pathname.startsWith('/app')) {{",
-            "      if (window.__TAURI_INTERNALS__) {{",
-            "        window.__TAURI_INTERNALS__.invoke('plugin:window|show', {{}}).catch(() => {{}});",
-            "      }}",
-            "      return true;",
-            "    }}",
-            "    const user = document.querySelector('#username, input[name=\"username\"], #email');",
-            "    const pass = document.querySelector('#password, input[name=\"password\"]');",
-            "    const submit = document.querySelector('#kc-login, input[type=\"submit\"], button[type=\"submit\"]');",
-            "    if (user && pass && submit) {{",
-            "      user.value = '{usr}';",
-            "      user.dispatchEvent(new Event('input', {{ bubbles: true }}));",
-            "      pass.value = '{pwd}';",
-            "      pass.dispatchEvent(new Event('input', {{ bubbles: true }}));",
-            "      submit.click();",
-            "      return true;",
-            "    }}",
-            "    return false;",
-            "  }}",
-            "  const timer = setInterval(() => {{",
-            "    if (handleAuth()) clearInterval(timer);",
-            "  }}, 150);",
-            "}})();"
-        ),
-        usr = escaped_email,
-        pwd = escaped_password
-    );
+    let params = [("usr", email.trim()), ("pwd", password.trim())];
+    let res = client
+        .post(&login_endpoint)
+        .form(&params)
+        .send()
+        .await
+        .map_err(|e| format!("Failed to reach ERPNext: {}", e))?;
 
-    let window = tauri::WebviewWindowBuilder::new(
+    let mut sid_cookie_value = String::new();
+    for cookie_header in res.headers().get_all(reqwest::header::SET_COOKIE) {
+        if let Ok(cookie_str) = cookie_header.to_str() {
+            if let Some(sid_part) = cookie_str.split(';').next() {
+                if sid_part.trim().starts_with("sid=") {
+                    sid_cookie_value = sid_part.trim().to_string();
+                    break;
+                }
+            }
+        }
+    }
+
+    // 3. Inject cookie and initialize dashboard directly
+    let cookie_injection_script = if !sid_cookie_value.is_empty() {
+        format!(
+            "document.cookie = '{}; path=/; domain=erp.hawkaerosystem.com; Secure';",
+            sid_cookie_value
+        )
+    } else {
+        String::new()
+    };
+
+    tauri::WebviewWindowBuilder::new(
         &app,
         "erp_dashboard",
-        tauri::WebviewUrl::App(target_url.into()),
+        tauri::WebviewUrl::App(dashboard_url.into()),
     )
     .title("ERPNext Dashboard - Hawk Aerosystems")
-    .initialization_script(&sso_script)
+    .initialization_script(&cookie_injection_script)
     .inner_size(1280.0, 800.0)
     .resizable(true)
-    .visible(false) // Keeps the window hidden while Keycloak authenticates in the background
     .build()
     .map_err(|e| e.to_string())?;
-
-    // Safety fallback: reveal the window after authentication completes
-    let win_clone = window.clone();
-    tauri::async_runtime::spawn(async move {
-        tokio::time::sleep(std::time::Duration::from_millis(3500)).await;
-        let _ = win_clone.show();
-        let _ = win_clone.set_focus();
-    });
 
     Ok(())
 }
