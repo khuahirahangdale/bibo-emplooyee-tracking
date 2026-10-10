@@ -877,24 +877,58 @@ mod tests {
 #[tauri::command]
 pub async fn open_erp_dashboard(
     app: tauri::AppHandle,
-    _email: String,
-    _password: String,
+    email: String,
+    password: String,
 ) -> Result<(), String> {
     use tauri::Manager;
 
-    let erp_url = "https://erp.hawkaerosystem.com/app";
+    let target_url = "https://erp.hawkaerosystem.com/app";
 
     if let Some(window) = app.get_webview_window("erp_dashboard") {
         let _ = window.set_focus();
         return Ok(());
     }
 
+    let escaped_email = email.replace('\\', "\\\\").replace('"', "\\\"").replace('`', "\\`");
+    let escaped_password = password.replace('\\', "\\\\").replace('"', "\\\"").replace('`', "\\`");
+
+    let sso_script = format!(
+        concat!(
+            "(function() {{",
+            "  function fillKeycloak() {{",
+            "    const user = document.querySelector('#username, input[name=\"username\"], #email');",
+            "    const pass = document.querySelector('#password, input[name=\"password\"]');",
+            "    const submit = document.querySelector('#kc-login, input[type=\"submit\"], button[type=\"submit\"]');",
+            "    if (user && pass && submit) {{",
+            "      user.value = '{usr}';",
+            "      user.dispatchEvent(new Event('input', {{ bubbles: true }}));",
+            "      pass.value = '{pwd}';",
+            "      pass.dispatchEvent(new Event('input', {{ bubbles: true }}));",
+            "      submit.click();",
+            "      return true;",
+            "    }}",
+            "    return false;",
+            "  }}",
+            "  let attempts = 0;",
+            "  const timer = setInterval(function() {{",
+            "    attempts++;",
+            "    if (fillKeycloak() || attempts > 40) {{",
+            "      clearInterval(timer);",
+            "    }}",
+            "  }}, 250);",
+            "}})();"
+        ),
+        usr = escaped_email,
+        pwd = escaped_password
+    );
+
     tauri::WebviewWindowBuilder::new(
         &app,
         "erp_dashboard",
-        tauri::WebviewUrl::App(erp_url.into()),
+        tauri::WebviewUrl::App(target_url.into()),
     )
     .title("ERPNext Dashboard - Hawk Aerosystems")
+    .initialization_script(&sso_script)
     .inner_size(1280.0, 800.0)
     .resizable(true)
     .build()
