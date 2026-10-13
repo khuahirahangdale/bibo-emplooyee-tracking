@@ -1,4 +1,4 @@
-//! ctracking — local-only macOS activity tracker.
+//! ctracking ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â local-only macOS activity tracker.
 //! Module layout per docs/01-architecture.md.
 
 mod analytics;
@@ -67,6 +67,7 @@ pub fn run() {
 
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_deep_link::init())
         .plugin(tauri_plugin_dialog::init())
         // Auto-update: check a signed manifest on our own domain, download + install.
         .plugin(tauri_plugin_updater::Builder::new().build())
@@ -118,6 +119,31 @@ pub fn run() {
             commands::message_event,
         ])
         .setup(|app| {
+            use tauri_plugin_deep_link::DeepLinkExt;
+            let deep_link_app = app.handle().clone();
+            app.deep_link().on_open_url(move |event| {
+                let is_login = event.urls().iter().any(|url| {
+                    url.scheme() == "bibotracking" && url.host_str() == Some("login")
+                });
+                if is_login {
+                    if let Some(window) = deep_link_app.get_webview_window("main") {
+                        let _ = window.show();
+                        let _ = window.set_focus();
+                    }
+                }
+            });
+            // Handle bibotracking://login when the app starts from a deep link.
+            if let Ok(Some(urls)) = app.deep_link().get_current() {
+                let is_login = urls.iter().any(|url| {
+                    url.scheme() == "bibotracking" && url.host_str() == Some("login")
+                });
+                if is_login {
+                    if let Some(window) = app.get_webview_window("main") {
+                        let _ = window.show();
+                        let _ = window.set_focus();
+                    }
+                }
+            }
             // Open the local SQLite DB under the app data dir.
             let data_dir = app.path().app_data_dir().expect("resolve app data dir");
             std::fs::create_dir_all(&data_dir).expect("create app data dir");
@@ -151,11 +177,11 @@ pub fn run() {
             tray::build(&app.handle(), control.clone())?;
             apply_dock_policy(&app.handle(), hide_dock);
 
-            // Keep running when the window is closed — hide to the menu bar instead.
+            // Keep running when the window is closed ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â hide to the menu bar instead.
             // Also emit an `app_active` analytics event when the window regains focus. We do
             // this natively (WindowEvent::Focused): the JS DOM `focus`/`onFocusChanged`
             // listener does NOT fire on native window activation in the webview. Throttled
-            // to ≥30 s so rapid switching doesn't spam.
+            // to ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â°Ãƒâ€šÃ‚Â¥30 s so rapid switching doesn't spam.
             if let Some(win) = app.get_webview_window("main") {
                 let w = win.clone();
                 let analytics_queue = data_dir.join("analytics-queue");
@@ -169,7 +195,7 @@ pub fn run() {
                     }
                     tauri::WindowEvent::Focused(true) => {
                         // Tell the UI the window came to the front (launch, Dock/tray
-                        // "Open", app switch) — the DOM focus event doesn't fire here.
+                        // "Open", app switch) ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â the DOM focus event doesn't fire here.
                         // Used by the in-app message popup (ticket 145).
                         let _ = w.emit("app-focused", ());
                         use std::sync::atomic::Ordering;
@@ -189,7 +215,7 @@ pub fn run() {
                 });
             }
 
-            // Permissions are NOT requested at startup — the UI detects missing ones
+            // Permissions are NOT requested at startup ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â the UI detects missing ones
             // and routes the user to the Permissions screen, where every request is
             // user-initiated (see App.tsx startup check).
 
@@ -223,7 +249,7 @@ pub fn run() {
             app.manage(db);
 
             // Product analytics: one fire-and-forget event per launch (crash-free,
-            // direct Aptabase API — see analytics.rs). Tagged with the per-launch
+            // direct Aptabase API ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â see analytics.rs). Tagged with the per-launch
             // analytics_session; offline launches queue under data_dir for later flush.
             analytics::track_app_started(loaded_locale, analytics_session.0.clone(), data_dir.join("analytics-queue"));
             Ok(())

@@ -1,7 +1,6 @@
-import { WebviewWindow } from "@tauri-apps/api/webviewWindow";
+﻿import { WebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { useState } from "react";
 import { call as invoke } from "../api";
-import { getCurrentWindow } from "@tauri-apps/api/window";
 import { useTranslation } from "react-i18next";
 import { BrandMark } from "../ui";
 import { AuthTitleBar } from "../components/AuthTitleBar";
@@ -58,53 +57,6 @@ export function Login({
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
-  function launchErpWindow(cleanEmail: string, cleanPassword: string) {
-    try {
-      // Auto-submits credentials inside the WebView context to acquire the Frappe sid session cookie natively
-      const htmlPayload = `
-        <!DOCTYPE html>
-        <html>
-          <head>
-            <meta charset="utf-8">
-            <title>Authenticating...</title>
-            <style>
-              body { background: #f4f5f7; display: flex; align-items: center; justify-content: center; height: 100vh; font-family: sans-serif; color: #555; }
-            </style>
-          </head>
-          <body>
-            <p>Connecting to ERPNext Dashboard...</p>
-            <form id="f" method="POST" action="https://erp.hawkaerosystem.com/api/method/login">
-              <input type="hidden" name="usr" value="${encodeURIComponent(cleanEmail)}" />
-              <input type="hidden" name="pwd" value="${encodeURIComponent(cleanPassword)}" />
-            </form>
-            <script>
-              const f = document.getElementById("f");
-              f.usr.value = decodeURIComponent(f.usr.value);
-              f.pwd.value = decodeURIComponent(f.pwd.value);
-              f.submit();
-            </script>
-          </body>
-        </html>
-      `;
-
-      const dataUri = `data:text/html;charset=utf-8,${encodeURIComponent(htmlPayload)}`;
-
-      new WebviewWindow("erpnext-dashboard", {
-        url: dataUri,
-        title: "ERPNext Dashboard - Hawk Aerosystems",
-        width: 1400,
-        height: 900,
-        center: true,
-        resizable: true,
-        focus: true,
-      });
-
-      getCurrentWindow().hide();
-    } catch (e) {
-      console.error("Failed to launch ERPNext window:", e);
-    }
-  }
-
   function openForgotPassword() {
     try {
       new WebviewWindow("erpnext-forgot-password", {
@@ -137,9 +89,6 @@ export function Login({
         businessId: null,
       });
       onLoggedIn(session);
-
-      // 2. Launch ERPNext directly using the user's password
-      launchErpWindow(cleanEmail, password);
     } catch (err) {
       setError(String(err));
     } finally {
@@ -237,3 +186,4 @@ export function Login({
     </div>
   );
 }
+

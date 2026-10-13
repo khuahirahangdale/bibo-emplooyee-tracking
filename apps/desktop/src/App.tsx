@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, type ReactElement } from "react";
+﻿import { useCallback, useEffect, useRef, useState, type ReactElement } from "react";
 import { call as invoke } from "./api";
 import { Sentry } from "./sentry";
 import { autoCheckAndPrompt } from "./updater";
@@ -24,6 +24,7 @@ import { Onboarding } from "./screens/Onboarding";
 import { LanguageSwitcher } from "./components/LanguageSwitcher";
 import { MessageCenter } from "./messages/MessageCenter";
 import { AppTrayMenu } from "./components/AppTrayMenu";
+import { ErpWorkspace } from "./screens/ErpWorkspace";
 
 type Screen =
   | "Dashboard"
@@ -115,7 +116,7 @@ const NAV_ICON: Record<Screen, () => ReactElement> = {
   Settings: GearIcon,
 };
 
-/* pause glyph shown inside the header tracking pill when paused ("❚❚ Paused") */
+/* pause glyph shown inside the header tracking pill when paused ("âšâš Paused") */
 const PauseBars = () => (
   <svg className="bb-trackpill__glyph" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
     <rect x="6" y="4" width="4" height="16" rx="1" />
@@ -146,7 +147,7 @@ function App() {
   // Whether the user clicked "I have an account" on the welcome screen.
   const [showLogin, setShowLogin] = useState(false);
   // Workspaces the signed-in user owns (via `admin_businesses`, scoped to
-  // `owner_user_id = caller` server-side). Non-empty ⇒ owner: the admin nav group
+  // `owner_user_id = caller` server-side). Non-empty â‡’ owner: the admin nav group
   // shows. `bizId` is the workspace the admin screens act on (shared picker).
   const [businesses, setBusinesses] = useState<OwnerBusiness[]>([]);
   const [bizId, setBizId] = useState<string | null>(null);
@@ -165,8 +166,8 @@ function App() {
     getVersion().then(setVersion).catch(() => {});
   }, []);
 
-  // Product analytics (ticket 133): UI clicks → Aptabase. (`app_active` is emitted
-  // natively in Rust on WindowEvent::Focused — the webview doesn't get reliable native
+  // Product analytics (ticket 133): UI clicks â†’ Aptabase. (`app_active` is emitted
+  // natively in Rust on WindowEvent::Focused â€” the webview doesn't get reliable native
   // focus events.) Delegated listener: any button or sidebar nav item, by its text.
   useEffect(() => {
     const onClick = (e: MouseEvent) => {
@@ -183,7 +184,7 @@ function App() {
     invoke<Session | null>("current_session")
       .then((s) => setSession(s ?? null))
       .catch(() => setSession(null));
-    // Settings are local (no auth) — load them up front so the welcome/personal
+    // Settings are local (no auth) â€” load them up front so the welcome/personal
     // gate can read `local_only` before any login.
     invoke<AppSettings>("get_settings").then(setSettings).catch(() => {});
     // Sync the native side (tray) to the UI's detected/saved language on startup.
@@ -191,7 +192,7 @@ function App() {
   }, [i18n.resolvedLanguage]);
 
   // Resolve owned workspaces whenever the session changes, so the admin nav group
-  // only shows for owners. Logged out / local-only (no session) ⇒ none.
+  // only shows for owners. Logged out / local-only (no session) â‡’ none.
   useEffect(() => {
     if (!session) {
       setBusinesses([]);
@@ -224,7 +225,7 @@ function App() {
 
   // Check for a signed app update on launch and whenever the window regains focus.
   // Throttled + de-duped inside updater.ts. On a newer version it downloads silently,
-  // then prompts the user to restart — it never relaunches without confirmation.
+  // then prompts the user to restart â€” it never relaunches without confirmation.
   useEffect(() => {
     autoCheckAndPrompt();
     const onFocus = () => autoCheckAndPrompt();
@@ -319,7 +320,7 @@ function App() {
   useEffect(() => {
     if (!pastAuthGate) return;
     invoke<TrackStatus>("tracking_state").then(setStatus).catch(() => {});
-    // The tray broadcasts tracking / idle / paused — keep the pill in sync with it.
+    // The tray broadcasts tracking / idle / paused â€” keep the pill in sync with it.
     const unlisten = listen<TrackStatus>("tracking-state", (e) => setStatus(e.payload));
     return () => {
       unlisten.then((f) => f());
@@ -332,7 +333,7 @@ function App() {
     refreshFromBackend();
   }, [session, refreshFromBackend]);
 
-  // Refresh when the window is reopened/refocused (menu-bar → Open main UI).
+  // Refresh when the window is reopened/refocused (menu-bar â†’ Open main UI).
   useEffect(() => {
     if (!session) return;
     const onVisible = () => {
@@ -385,7 +386,7 @@ function App() {
     } catch {
       /* clear locally regardless */
     }
-    // Only drop the session — settings are local (no auth) and are loaded once on
+    // Only drop the session â€” settings are local (no auth) and are loaded once on
     // mount. Clearing them here left the router stuck on the loading gate
     // (`settings === null`) with nothing to reload them, so logout never reached
     // the welcome/login screen. BRI-21
@@ -401,7 +402,7 @@ function App() {
       </div>
     );
   }
-  // No account and not in personal/local mode → the welcome/persona branch.
+  // No account and not in personal/local mode â†’ the welcome/persona branch.
   if (!pastAuthGate) {
     return showLogin ? (
       <Login onLoggedIn={setSession} onBack={() => setShowLogin(false)} />
@@ -413,7 +414,7 @@ function App() {
     );
   }
 
-  // First-run onboarding (3 steps: what's captured → configure → permissions),
+  // First-run onboarding (3 steps: what's captured â†’ configure â†’ permissions),
   // shown once per install. Step 1 is the "What BiBoTracking captures" disclosure,
   // so finishing/skipping it also records `consented` (gates capture on Windows).
   if (settings && !settings.onboarding_completed) {
@@ -426,6 +427,8 @@ function App() {
       />
     );
   }
+
+  if (session && settings?.onboarding_completed) return <ErpWorkspace />;
 
   const isAdminScreen = screen === "TeamOverview" || screen === "Members";
   // On the Members tab, a drilled-in member's name replaces the section title.
@@ -443,7 +446,7 @@ function App() {
   return (
     <div className="app">
       <div className="app-titlebar" onMouseDown={dragWindow}>
-        <span className="app-titlebar-title">BiBoTracking — {headerTitle}</span>
+        <span className="app-titlebar-title">BiBoTracking â€” {headerTitle}</span>
         <AppTrayMenu status={status} onToggleTracking={toggleTracking} />
       </div>
       <div className="app-body">
@@ -516,7 +519,7 @@ function App() {
                 }}
                 title={t("account.setupAgainTooltip")}
               >
-                {t("account.setupAgain")} <span aria-hidden>→</span>
+                {t("account.setupAgain")} <span aria-hidden>â†’</span>
               </button>
             </div>
           )}
@@ -567,7 +570,7 @@ function App() {
                 <span>{t("permissions:startupNotice.body")}</span>
                 {screen !== "Permissions" && (
                   <button className="perm-notice__link" onClick={() => setScreen("Permissions")}>
-                    {t("permissions:startupNotice.open")} <span aria-hidden>→</span>
+                    {t("permissions:startupNotice.open")} <span aria-hidden>â†’</span>
                   </button>
                 )}
               </div>
@@ -576,7 +579,7 @@ function App() {
                 aria-label={t("permissions:startupNotice.dismiss")}
                 onClick={() => setPermNotice(false)}
               >
-                ×
+                Ã—
               </button>
             </div>
           )}
@@ -631,3 +634,4 @@ function App() {
 }
 
 export default App;
+
